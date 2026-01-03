@@ -1,6 +1,6 @@
 {
   "name": "saucer-nodejs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Node.js bindings for saucer - a modern C++ webview library with non-blocking event loop",
   "main": "index.js",
   "types": "index.d.ts",
@@ -18,7 +18,7 @@
     }
   },
   "bin": {
-    "saucer": "./cli/saucer.js"
+    "saucer": "cli/saucer.js"
   },
   "scripts": {
     "install": "node scripts/install.js",
@@ -45,7 +45,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/MrLionware/saucer-nodejs.git"
+    "url": "git+https://github.com/MrLionware/saucer-nodejs.git"
   },
   "homepage": "https://github.com/MrLionware/saucer-nodejs#readme",
   "bugs": {
@@ -56,6 +56,7 @@
     "index.d.ts",
     "lib/",
     "cli/",
+    "prebuilds/",
     "scripts/install.js",
     "binding.gyp",
     "CMakeLists.txt",

@@ -40,6 +40,20 @@ function error(message) {
 }
 
 /**
+ * Check if bundled prebuild exists in the package
+ */
+function hasBundledPrebuild() {
+    const platformKey = getPlatformKey();
+    const prebuildPath = join(rootDir, 'prebuilds', platformKey, 'saucer-nodejs.node');
+
+    if (existsSync(prebuildPath)) {
+        log(`Found bundled prebuild: prebuilds/${platformKey}/saucer-nodejs.node`);
+        return true;
+    }
+    return false;
+}
+
+/**
  * Check if prebuilt binary is available via optionalDependency
  */
 function hasPrebuiltBinary() {
@@ -126,9 +140,15 @@ async function main() {
         return;
     }
 
-    // Check for prebuilt binary first
+    // Check for bundled prebuild first (included in npm package)
+    if (hasBundledPrebuild()) {
+        log('Using bundled prebuild');
+        return;
+    }
+
+    // Check for prebuilt binary via optional dependency
     if (hasPrebuiltBinary()) {
-        log('Using prebuilt binary');
+        log('Using prebuilt binary from optional dependency');
         return;
     }
 
