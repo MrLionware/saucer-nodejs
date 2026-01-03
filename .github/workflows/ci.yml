@@ -94,17 +94,8 @@ jobs:
         shell: pwsh
         run: |
           choco install cmake ninja -y
-          
-          # Clone and bootstrap vcpkg
-          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-          C:\vcpkg\bootstrap-vcpkg.bat
-          
-          # Install webview2 via vcpkg
-          C:\vcpkg\vcpkg.exe install webview2:${{ matrix.arch }}-windows
-          
-          # Set vcpkg toolchain for cmake-js
-          echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
-          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+          # NuGet is pre-installed on windows-latest runners
+          # saucer will download WebView2 via its own NuGet mechanism
 
       # -------------------------------------------------------------------------
       # Linux Setup
@@ -160,7 +151,8 @@ jobs:
         if: matrix.platform == 'win32'
         shell: pwsh
         run: |
-          npx cmake-js rebuild --CDCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake"
+          # Build with saucer_no_version_check to allow current MSVC
+          npx cmake-js rebuild --CDsaucer_no_version_check=ON
         env:
           npm_config_build_from_source: true
 
