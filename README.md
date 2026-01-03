@@ -22,7 +22,7 @@
 
 ---
 
-**saucer-nodejs** is a modern, lightweight alternative to Electron for building cross-platform desktop applications with web technologies. Built on the [saucer](https://github.com/aspect-build/saucer) C++ webview library, it provides native webview integration with a **non-blocking event loop** that works seamlessly with Node.js async patterns.
+**saucer-nodejs** is a modern, lightweight alternative to Electron for building cross-platform desktop applications with web technologies. Built on the [saucer](https://github.com/saucer/saucer) C++ webview library, it provides native webview integration with a **non-blocking event loop** that works seamlessly with Node.js async patterns.
 
 ## Why saucer-nodejs?
 

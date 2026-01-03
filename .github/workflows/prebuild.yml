@@ -16,8 +16,8 @@ jobs:
           - os: macos-14
             arch: arm64
             platform: darwin
-          # macOS x64 (Intel)
-          - os: macos-13
+          # macOS x64 (Intel) - using macos-15 with Rosetta
+          - os: macos-15
             arch: x64
             platform: darwin
           # Windows x64

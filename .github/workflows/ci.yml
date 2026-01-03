@@ -27,8 +27,8 @@ jobs:
             arch: arm64
             platform: darwin
             
-          # macOS x64 (Intel)
-          - os: macos-13
+          # macOS x64 (Intel) - using macos-15 with Rosetta
+          - os: macos-15
             target: darwin-x64
             arch: x64
             platform: darwin
@@ -46,13 +46,13 @@ jobs:
             platform: win32
             
           # Linux x64 (Ubuntu)
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             target: linux-x64-gnu
             arch: x64
             platform: linux
             
           # Linux ARM64 (using QEMU)
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             target: linux-arm64-gnu
             arch: arm64
             platform: linux
@@ -189,11 +189,11 @@ jobs:
         include:
           - os: macos-14
             target: darwin-arm64
-          - os: macos-13
+          - os: macos-15
             target: darwin-x64
           - os: windows-latest
             target: win32-x64
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             target: linux-x64-gnu
 
     runs-on: ${{ matrix.os }}
