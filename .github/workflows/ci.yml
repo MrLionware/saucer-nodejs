@@ -33,30 +33,35 @@ jobs:
             arch: x64
             platform: darwin
             
-          # Windows x64
-          - os: windows-latest
-            target: win32-x64
-            arch: x64
-            platform: win32
-            
-          # Windows ARM64
-          - os: windows-latest
-            target: win32-arm64
-            arch: arm64
-            platform: win32
-            
-          # Linux x64 (Ubuntu)
-          - os: ubuntu-24.04
-            target: linux-x64-gnu
-            arch: x64
-            platform: linux
-            
-          # Linux ARM64 (using QEMU)
-          - os: ubuntu-24.04
-            target: linux-arm64-gnu
-            arch: arm64
-            platform: linux
-            docker: true
+          # TODO: Windows and Linux builds require additional setup
+          # Windows needs WebView2 SDK with CMake config files
+          # Linux needs WebKitGTK 4.1 and GCC 14
+          # For now, prebuilds for these platforms should be done locally
+          
+          # # Windows x64
+          # - os: windows-latest
+          #   target: win32-x64
+          #   arch: x64
+          #   platform: win32
+          #   
+          # # Windows ARM64
+          # - os: windows-latest
+          #   target: win32-arm64
+          #   arch: arm64
+          #   platform: win32
+          #   
+          # # Linux x64 (Ubuntu)
+          # - os: ubuntu-24.04
+          #   target: linux-x64-gnu
+          #   arch: x64
+          #   platform: linux
+          #   
+          # # Linux ARM64 (using QEMU)
+          # - os: ubuntu-24.04
+          #   target: linux-arm64-gnu
+          #   arch: arm64
+          #   platform: linux
+          #   docker: true
 
     runs-on: ${{ matrix.os }}
     
@@ -220,10 +225,11 @@ jobs:
             target: darwin-arm64
           - os: macos-15
             target: darwin-x64
-          - os: windows-latest
-            target: win32-x64
-          - os: ubuntu-24.04
-            target: linux-x64-gnu
+          # # Windows/Linux tests disabled until builds are fixed
+          # - os: windows-latest
+          #   target: win32-x64
+          # - os: ubuntu-24.04
+          #   target: linux-x64-gnu
 
     runs-on: ${{ matrix.os }}
     
