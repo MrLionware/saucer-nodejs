@@ -1,0 +1,97 @@
+{
+  "name": "saucer-nodejs",
+  "version": "0.1.0",
+  "description": "Node.js bindings for saucer - a modern C++ webview library with non-blocking event loop",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "types": "./index.d.ts"
+    },
+    "./native": {
+      "import": "./lib/native-loader.js"
+    },
+    "./debug": {
+      "import": "./lib/debug.js"
+    }
+  },
+  "bin": {
+    "saucer": "./cli/saucer.js"
+  },
+  "scripts": {
+    "install": "node scripts/install.js",
+    "build": "cmake-js build",
+    "rebuild": "cmake-js rebuild",
+    "prebuild": "node scripts/prebuild.js",
+    "prebuild:upload": "node scripts/upload-prebuilds.js",
+    "build:app": "node scripts/build.js",
+    "test": "node examples/basic.js",
+    "test:phase1": "node examples/phase1-features.js",
+    "test:doctor": "node cli/saucer.js doctor",
+    "prepublishOnly": "node scripts/prepublish.js"
+  },
+  "keywords": [
+    "webview",
+    "gui",
+    "saucer",
+    "desktop",
+    "electron-alternative",
+    "non-blocking",
+    "native"
+  ],
+  "author": "Caleb Rubiano",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrLionware/saucer-nodejs.git"
+  },
+  "homepage": "https://github.com/MrLionware/saucer-nodejs#readme",
+  "bugs": {
+    "url": "https://github.com/MrLionware/saucer-nodejs/issues"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "lib/",
+    "cli/",
+    "scripts/install.js",
+    "binding.gyp",
+    "CMakeLists.txt",
+    "src/",
+    "vendor/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "bindings": "^1.5.0",
+    "node-addon-api": "^8.3.0"
+  },
+  "devDependencies": {
+    "cmake-js": "^7.3.0",
+    "esbuild": "^0.24.0",
+    "postject": "^1.0.0-alpha.6",
+    "tar": "^7.0.0"
+  },
+  "optionalDependencies": {
+    "@aspect-build/saucer-nodejs-darwin-arm64": "0.1.0",
+    "@aspect-build/saucer-nodejs-darwin-x64": "0.1.0",
+    "@aspect-build/saucer-nodejs-win32-x64": "0.1.0",
+    "@aspect-build/saucer-nodejs-win32-arm64": "0.1.0",
+    "@aspect-build/saucer-nodejs-linux-x64-gnu": "0.1.0",
+    "@aspect-build/saucer-nodejs-linux-arm64-gnu": "0.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

@@ -1,0 +1,64 @@
+# npm ignore file
+# This file explicitly controls what files are excluded from npm publish
+# Note: package.json "files" field defines the whitelist of included files
+
+# Build artifacts
+build/
+*.node
+*.o
+*.obj
+
+# Development files
+.github/
+.vscode/
+.idea/
+*.log
+
+# Documentation (except README)
+PUBLISHING.md
+ARCHITECTURE.md
+PHASE*.md
+CONTRIBUTING.md
+docs/
+
+# Examples (users can get from GitHub)
+examples/
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Config files
+.editorconfig
+.eslintrc*
+.prettierrc*
+tsconfig.json
+jest.config.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# npm files
+npm/
+.npmrc
+
+# Git files
+.git/
+.gitattributes
+
+# Build cache
+.cache/
+.saucer-build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Lock files (not needed for library)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

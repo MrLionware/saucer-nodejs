@@ -1,0 +1,35 @@
+{
+    "name": "@aspect-build/saucer-nodejs-win32-arm64",
+    "version": "0.1.0",
+    "description": "Saucer Node.js bindings - Windows ARM64 prebuilt binary",
+    "os": [
+        "win32"
+    ],
+    "cpu": [
+        "arm64"
+    ],
+    "main": "saucer-nodejs.node",
+    "files": [
+        "saucer-nodejs.node",
+        "*.dll"
+    ],
+    "keywords": [
+        "webview",
+        "gui",
+        "saucer",
+        "desktop",
+        "electron-alternative"
+    ],
+    "license": "MIT",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "publishConfig": {
+        "registry": "https://registry.npmjs.org/",
+        "access": "public"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aspect-build/saucer-nodejs.git"
+    }
+}

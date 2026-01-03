@@ -1,0 +1,335 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DEBUG: 'napi:*'
+
+jobs:
+  # ===========================================================================
+  # Build native binaries for all platforms
+  # ===========================================================================
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            target: darwin-arm64
+            arch: arm64
+            platform: darwin
+            
+          # macOS x64 (Intel)
+          - os: macos-13
+            target: darwin-x64
+            arch: x64
+            platform: darwin
+            
+          # Windows x64
+          - os: windows-latest
+            target: win32-x64
+            arch: x64
+            platform: win32
+            
+          # Windows ARM64
+          - os: windows-latest
+            target: win32-arm64
+            arch: arm64
+            platform: win32
+            
+          # Linux x64 (Ubuntu)
+          - os: ubuntu-22.04
+            target: linux-x64-gnu
+            arch: x64
+            platform: linux
+            
+          # Linux ARM64 (using QEMU)
+          - os: ubuntu-22.04
+            target: linux-arm64-gnu
+            arch: arm64
+            platform: linux
+            docker: true
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # -------------------------------------------------------------------------
+      # macOS Setup
+      # -------------------------------------------------------------------------
+      - name: Install dependencies (macOS)
+        if: matrix.platform == 'darwin'
+        run: |
+          brew install cmake ninja
+          echo "Using Xcode $(xcodebuild -version | head -1)"
+
+      # -------------------------------------------------------------------------
+      # Windows Setup
+      # -------------------------------------------------------------------------
+      - name: Setup MSVC (Windows)
+        if: matrix.platform == 'win32'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Install dependencies (Windows)
+        if: matrix.platform == 'win32'
+        run: |
+          choco install cmake ninja -y
+          refreshenv
+
+      # -------------------------------------------------------------------------
+      # Linux Setup
+      # -------------------------------------------------------------------------
+      - name: Install dependencies (Linux x64)
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev
+          gcc --version
+          cmake --version
+
+      - name: Setup QEMU (Linux ARM64)
+        if: matrix.docker == true
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      # -------------------------------------------------------------------------
+      # Build
+      # -------------------------------------------------------------------------
+      - name: Install npm dependencies
+        run: npm install --ignore-scripts
+
+      - name: Build (Linux ARM64 Docker)
+        if: matrix.docker == true
+        uses: addnab/docker-run-action@v3
+        with:
+          image: node:20-bookworm
+          options: -v ${{ github.workspace }}:/work -w /work --platform linux/arm64
+          run: |
+            apt-get update
+            apt-get install -y cmake ninja-build build-essential
+            apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev
+            npm install --ignore-scripts
+            npm run rebuild
+            cp -r build/Release/* npm/linux-arm64-gnu/
+
+      - name: Build (native)
+        if: matrix.docker != true
+        run: npm run rebuild
+        env:
+          npm_config_build_from_source: true
+
+      # -------------------------------------------------------------------------
+      # Copy build artifacts to npm package directory
+      # -------------------------------------------------------------------------
+      - name: Copy artifacts (macOS)
+        if: matrix.platform == 'darwin'
+        run: |
+          mkdir -p npm/${{ matrix.target }}
+          cp build/Release/saucer-nodejs.node npm/${{ matrix.target }}/
+          cp build/Release/*.dylib npm/${{ matrix.target }}/ 2>/dev/null || true
+          ls -la npm/${{ matrix.target }}/
+
+      - name: Copy artifacts (Windows)
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path npm/${{ matrix.target }}
+          Copy-Item build/Release/saucer-nodejs.node npm/${{ matrix.target }}/
+          Copy-Item build/Release/*.dll npm/${{ matrix.target }}/ -ErrorAction SilentlyContinue
+          Get-ChildItem npm/${{ matrix.target }}/
+
+      - name: Copy artifacts (Linux x64)
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+        run: |
+          mkdir -p npm/${{ matrix.target }}
+          cp build/Release/saucer-nodejs.node npm/${{ matrix.target }}/
+          cp build/Release/*.so* npm/${{ matrix.target }}/ 2>/dev/null || true
+          ls -la npm/${{ matrix.target }}/
+
+      # -------------------------------------------------------------------------
+      # Upload artifacts
+      # -------------------------------------------------------------------------
+      - name: Upload platform package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.target }}
+          path: npm/${{ matrix.target }}/
+          retention-days: 7
+          if-no-files-found: error
+
+  # ===========================================================================
+  # Test the builds
+  # ===========================================================================
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: darwin-arm64
+          - os: macos-13
+            target: darwin-x64
+          - os: windows-latest
+            target: win32-x64
+          - os: ubuntu-22.04
+            target: linux-x64-gnu
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download platform package
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-${{ matrix.target }}
+          path: npm/${{ matrix.target }}/
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: List downloaded files
+        run: ls -laR npm/${{ matrix.target }}/
+        shell: bash
+
+      - name: Create test script
+        shell: bash
+        run: |
+          cat << 'EOF' > test-prebuilt.js
+          import { createRequire } from 'module';
+          import { join, dirname } from 'path';
+          import { fileURLToPath } from 'url';
+          
+          const require = createRequire(import.meta.url);
+          const __dirname = dirname(fileURLToPath(import.meta.url));
+          
+          // Test loading the native module
+          const binding = require(join(__dirname, 'npm', '${{ matrix.target }}', 'saucer-nodejs.node'));
+          console.log('✅ Native binding loaded successfully!');
+          console.log('   Exports:', Object.keys(binding));
+          
+          // Test creating an application
+          const app = new binding.Application({});
+          console.log('✅ Application created successfully!');
+          console.log('   Thread safe:', app.isThreadSafe());
+          
+          // Clean up
+          app.quit();
+          console.log('✅ All tests passed!');
+          EOF
+
+      - name: Run test
+        run: node test-prebuilt.js
+
+  # ===========================================================================
+  # Publish to npm (on tag push)
+  # ===========================================================================
+  publish:
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download all platform packages
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: npm-*
+
+      - name: Prepare platform packages
+        run: |
+          for dir in artifacts/npm-*/; do
+            target=$(basename "$dir" | sed 's/npm-//')
+            echo "Processing $target..."
+            mkdir -p npm/$target
+            cp -r "$dir"/* npm/$target/
+            ls -la npm/$target/
+          done
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update version in all packages
+        run: |
+          # Update main package version
+          npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+          
+          # Update platform package versions
+          for pkg in npm/*/package.json; do
+            echo "Updating $pkg..."
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync('$pkg'));
+              pkg.version = '${{ steps.version.outputs.VERSION }}';
+              fs.writeFileSync('$pkg', JSON.stringify(pkg, null, 2) + '\n');
+            "
+          done
+
+      - name: Publish platform packages
+        run: |
+          for dir in npm/*/; do
+            echo "Publishing $(basename $dir)..."
+            cd "$dir"
+            npm publish --access public --provenance || echo "Failed to publish $(basename $dir)"
+            cd ../..
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies for main package
+        run: npm install --ignore-scripts
+
+      - name: Publish main package
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            npm/*/saucer-nodejs.node
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
