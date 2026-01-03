@@ -95,11 +95,16 @@ jobs:
         run: |
           choco install cmake ninja -y
           
-          # Install WebView2 SDK via NuGet
-          nuget install Microsoft.Web.WebView2 -OutputDirectory $env:GITHUB_WORKSPACE\webview2
-          $webview2Path = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\webview2" -Filter "Microsoft.Web.WebView2.*" | Select-Object -First 1
-          echo "WEBVIEW2_DIR=$($webview2Path.FullName)" >> $env:GITHUB_ENV
-          echo "CMAKE_PREFIX_PATH=$($webview2Path.FullName)\build\native" >> $env:GITHUB_ENV
+          # Clone and bootstrap vcpkg
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+          
+          # Install webview2 via vcpkg
+          C:\vcpkg\vcpkg.exe install webview2:${{ matrix.arch }}-windows
+          
+          # Set vcpkg toolchain for cmake-js
+          echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
 
       # -------------------------------------------------------------------------
       # Linux Setup
@@ -141,9 +146,17 @@ jobs:
             npm run rebuild
             cp -r build/Release/* npm/linux-arm64-gnu/
 
-      - name: Build (native)
-        if: matrix.docker != true
+      - name: Build (native - non-Windows)
+        if: matrix.docker != true && matrix.platform != 'win32'
         run: npm run rebuild
+        env:
+          npm_config_build_from_source: true
+
+      - name: Build (Windows)
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          npx cmake-js rebuild --CDCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake"
         env:
           npm_config_build_from_source: true
 
