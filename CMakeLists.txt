@@ -23,36 +23,72 @@ set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -std=c++23")
 # Add NAPI version
 add_definitions(-DNAPI_VERSION=9)
 
-# Get Node.js include directory (contains N-API/Node headers)
-execute_process(
-  COMMAND node -p "process.config.variables.node_prefix + '/include/node'"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  OUTPUT_VARIABLE NODE_INCLUDE_DIR
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# Get Node.js include directory from cmake-js or detect manually
+if(CMAKE_JS_INC)
+  message(STATUS "Using cmake-js include directories")
+  set(NODE_INCLUDE_DIR ${CMAKE_JS_INC})
+else()
+  # Fallback: Get Node.js include directory manually
+  if(WIN32)
+    execute_process(
+      COMMAND node -p "require('path').dirname(process.execPath) + '\\\\include\\\\node'"
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      OUTPUT_VARIABLE NODE_INCLUDE_DIR
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  else()
+    execute_process(
+      COMMAND node -p "process.config.variables.node_prefix + '/include/node'"
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      OUTPUT_VARIABLE NODE_INCLUDE_DIR
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  endif()
+endif()
 
 message(STATUS "Node.js include directory: ${NODE_INCLUDE_DIR}")
 
-# Locate libuv headers (Node may not ship uv.h in node headers)
-find_path(UV_INCLUDE_DIR uv.h
-  HINTS
-    ${NODE_INCLUDE_DIR}
-    ${NODE_INCLUDE_DIR}/..
-    /opt/homebrew/include
-    /usr/local/include
-    /usr/include
-)
+# Locate libuv headers
+# On Windows with cmake-js, uv.h should be in the cmake-js includes
+# On macOS/Linux, it's typically bundled with Node or in system paths
+if(WIN32)
+  # On Windows, uv.h is in the node include directory
+  find_path(UV_INCLUDE_DIR uv.h
+    HINTS
+      ${CMAKE_JS_INC}
+      ${NODE_INCLUDE_DIR}
+    NO_DEFAULT_PATH
+  )
+  # If not found, just use the node include dir (uv.h is bundled)
+  if(NOT UV_INCLUDE_DIR)
+    set(UV_INCLUDE_DIR ${NODE_INCLUDE_DIR})
+  endif()
+else()
+  find_path(UV_INCLUDE_DIR uv.h
+    HINTS
+      ${CMAKE_JS_INC}
+      ${NODE_INCLUDE_DIR}
+      ${NODE_INCLUDE_DIR}/..
+      /opt/homebrew/include
+      /usr/local/include
+      /usr/include
+  )
+endif()
 
-if (NOT UV_INCLUDE_DIR)
-  message(FATAL_ERROR "Could not locate uv.h - install libuv headers or set UV_INCLUDE_DIR")
+if (NOT UV_INCLUDE_DIR AND NOT CMAKE_JS_INC)
+  message(WARNING "Could not locate uv.h - build may fail if libuv is required")
 else()
   message(STATUS "libuv include directory: ${UV_INCLUDE_DIR}")
 endif()
 
 # Include directories
 include_directories(${CMAKE_JS_INC})
-include_directories(${NODE_INCLUDE_DIR})
-include_directories(${UV_INCLUDE_DIR})
+if(NODE_INCLUDE_DIR)
+  include_directories(${NODE_INCLUDE_DIR})
+endif()
+if(UV_INCLUDE_DIR)
+  include_directories(${UV_INCLUDE_DIR})
+endif()
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/vendor/bindings/include")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/vendor/bindings/modules/desktop/include")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/vendor/bindings/modules/pdf/include")
