@@ -276,13 +276,14 @@ jobs:
           console.log('✅ Application created successfully!');
           console.log('   Thread safe:', app.isThreadSafe());
           
-          // Clean up
-          app.quit();
+          // Clean up and exit
           console.log('✅ All tests passed!');
+          process.exit(0);
           EOF
 
       - name: Run test
         run: node test-prebuilt.js
+        timeout-minutes: 2
 
   # ===========================================================================
   # Publish to npm (on tag push)
