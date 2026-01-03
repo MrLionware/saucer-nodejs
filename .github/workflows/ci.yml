@@ -94,8 +94,20 @@ jobs:
         shell: pwsh
         run: |
           choco install cmake ninja -y
-          # NuGet is pre-installed on windows-latest runners
-          # saucer will download WebView2 via its own NuGet mechanism
+          
+          # Use runner's vcpkg to install webview2
+          $vcpkg = "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe"
+          if (Test-Path $vcpkg) {
+            & $vcpkg install webview2:${{ matrix.arch }}-windows-static
+            echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.arch }}-windows-static\share" >> $env:GITHUB_ENV
+            echo "VCPKG_INSTALLED=$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.arch }}-windows-static" >> $env:GITHUB_ENV
+          } else {
+            # Fallback: clone and bootstrap vcpkg
+            git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+            C:\vcpkg\bootstrap-vcpkg.bat
+            C:\vcpkg\vcpkg.exe install webview2:${{ matrix.arch }}-windows-static
+            echo "CMAKE_PREFIX_PATH=C:\vcpkg\installed\${{ matrix.arch }}-windows-static\share" >> $env:GITHUB_ENV
+          }
 
       # -------------------------------------------------------------------------
       # Linux Setup
