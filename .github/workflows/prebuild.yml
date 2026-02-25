@@ -13,7 +13,8 @@ jobs:
       matrix:
         include:
           # macOS ARM64 (Apple Silicon)
-          - os: macos-14
+          # Use newer AppleClang/Xcode toolchain for saucer v8 dependencies
+          - os: macos-15
             arch: arm64
             platform: darwin
           # macOS x64 (Intel) - using macos-15 with Rosetta
@@ -53,7 +54,7 @@ jobs:
         run: npm install --ignore-scripts
 
       - name: Build prebuild
-        run: npx prebuild --backend cmake-js --arch ${{ matrix.arch }}
+        run: npx prebuild --backend cmake-js --arch ${{ matrix.arch }} -- --CDsaucer_no_compiler_version_check=ON
         env:
           npm_config_build_from_source: true
 
