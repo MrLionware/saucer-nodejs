@@ -22,7 +22,9 @@ jobs:
       matrix:
         include:
           # macOS ARM64 (Apple Silicon)
-          - os: macos-14
+          # Use macos-15 (newer AppleClang/Xcode) because saucer v8 pulls
+          # nontype_functional, which fails to compile on AppleClang 15.x.
+          - os: macos-15
             target: darwin-arm64
             arch: arm64
             platform: darwin
@@ -221,7 +223,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             target: darwin-arm64
           - os: macos-15
             target: darwin-x64
