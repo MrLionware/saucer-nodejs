@@ -334,20 +334,14 @@ jobs:
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
-          always-auth: true
 
-      - name: Resolve npm auth token
+      - name: Verify OIDC for trusted publishing
         run: |
-          token="${NPM_TOKEN:-${NODE_AUTH_TOKEN_SECRET:-}}"
-          if [ -z "$token" ]; then
-            echo "::error::Missing npm auth token. Set repository secret NPM_TOKEN or NODE_AUTH_TOKEN."
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::OIDC token exchange is unavailable. Ensure id-token: write is enabled for this job."
             exit 1
           fi
-          echo "::add-mask::$token"
-          echo "NODE_AUTH_TOKEN=$token" >> "$GITHUB_ENV"
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN_SECRET: ${{ secrets.NODE_AUTH_TOKEN }}
+          echo "OIDC is available; publishing via npm trusted publishing."
 
       - name: Download all platform packages
         uses: actions/download-artifact@v4
