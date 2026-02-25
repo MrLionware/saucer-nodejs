@@ -184,11 +184,30 @@ jobs:
           mkdir -p npm/${{ matrix.target }}
           cp build/Release/saucer-nodejs.node npm/${{ matrix.target }}/
           cp build/Release/*.dylib npm/${{ matrix.target }}/ 2>/dev/null || true
-          # Ensure runtime lookup includes artifact-local directory.
-          for bin in npm/${{ matrix.target }}/saucer-nodejs.node npm/${{ matrix.target }}/*.dylib; do
-            [ -e "$bin" ] || continue
-            install_name_tool -add_rpath "@loader_path" "$bin" 2>/dev/null || true
+
+          # Rewrite dylib lookup to artifact-local paths so prebuilt testing does
+          # not depend on the original build/Release directory.
+          libs=(
+            "libsaucer-bindings-desktop.dylib"
+            "libsaucer-bindings-pdf.dylib"
+            "libsaucer-bindings-loop.dylib"
+            "libsaucer-bindings.dylib"
+            "libsaucer.dylib"
+          )
+
+          for bin in "saucer-nodejs.node" "${libs[@]}"; do
+            file="npm/${{ matrix.target }}/${bin}"
+            [ -f "$file" ] || continue
+
+            for dep in "${libs[@]}"; do
+              install_name_tool -change "@rpath/${dep}" "@loader_path/${dep}" "$file" 2>/dev/null || true
+            done
+
+            install_name_tool -delete_rpath "$(pwd)/build/Release" "$file" 2>/dev/null || true
+            install_name_tool -add_rpath "@loader_path" "$file" 2>/dev/null || true
           done
+
+          otool -L npm/${{ matrix.target }}/saucer-nodejs.node || true
           otool -l npm/${{ matrix.target }}/saucer-nodejs.node | grep -A2 LC_RPATH || true
           ls -la npm/${{ matrix.target }}/
 
