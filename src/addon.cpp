@@ -67,6 +67,17 @@
 // Platform-specific premium features
 #include "platform.hpp"
 
+// Glaze v6.4 declares a generic fallback for convert_from_generic but does not
+// provide a direct generic_json -> generic_json definition in all toolchains.
+// MSVC can instantiate that unresolved path while parsing nested containers.
+namespace glz {
+template <num_mode Mode>
+inline error_ctx convert_from_generic(generic_json<Mode>& result, const generic_json<Mode>& source) {
+  result = source;
+  return {};
+}
+} // namespace glz
+
 
 
 namespace saucer_nodejs {
