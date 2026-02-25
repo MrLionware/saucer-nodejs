@@ -1,7 +1,5 @@
 import { Application, Webview, Icon, Stash, Desktop, PDF, SmartviewRPC, createRPC, Types, clipboard, Notification, SystemTray } from "../index.js";
 import * as readline from "readline";
-import * as fs from "fs";
-import * as path from "path";
 
 // Register custom URL schemes BEFORE any Application/Webview initialization
 // This is required for custom scheme handlers to work
@@ -48,6 +46,336 @@ const manualEvents = [
   "minimize", // User minimizes the window
   "favicon", // May fire if real URLs with favicons are loaded
 ];
+
+// v8.0.0 API parity manifest. Any drift should fail this script so it stays
+// authoritative for binding coverage.
+const API_PARITY_MANIFEST = {
+  classes: {
+    Application: {
+      ctor: Application,
+      staticMethods: ["active", "init"],
+      methods: [
+        "dispatch",
+        "isThreadSafe",
+        "make",
+        "nativeHandle",
+        "poolEmplace",
+        "poolSubmit",
+        "post",
+        "quit",
+        "run",
+      ],
+      accessors: ["native"],
+    },
+    Webview: {
+      ctor: Webview,
+      staticMethods: ["registerScheme"],
+      methods: [
+        "back",
+        "clearEmbedded",
+        "clearExposed",
+        "clearScripts",
+        "close",
+        "embed",
+        "evaluate",
+        "execute",
+        "expose",
+        "focus",
+        "forward",
+        "handleScheme",
+        "hide",
+        "inject",
+        "loadHtml",
+        "navigate",
+        "off",
+        "on",
+        "onMessage",
+        "once",
+        "reload",
+        "removeScheme",
+        "serve",
+        "setFile",
+        "setIcon",
+        "show",
+        "startDrag",
+        "startResize",
+      ],
+      accessors: [
+        "alwaysOnTop",
+        "backgroundColor",
+        "clickThrough",
+        "contextMenu",
+        "decorations",
+        "devTools",
+        "favicon",
+        "focused",
+        "forceDarkMode",
+        "fullscreen",
+        "maxSize",
+        "maximized",
+        "minSize",
+        "minimized",
+        "native",
+        "pageTitle",
+        "parent",
+        "position",
+        "resizable",
+        "size",
+        "title",
+        "url",
+        "visible",
+        "zoom",
+      ],
+    },
+    Stash: {
+      ctor: Stash,
+      staticMethods: ["from", "view"],
+      methods: ["getData"],
+      accessors: ["native", "size"],
+    },
+    Icon: {
+      ctor: Icon,
+      staticMethods: ["fromData", "fromFile"],
+      methods: ["getData", "isEmpty", "save"],
+      accessors: ["native"],
+    },
+    Desktop: {
+      ctor: Desktop,
+      staticMethods: [],
+      methods: ["open", "pickFile", "pickFiles", "pickFolder", "pickFolders"],
+      accessors: ["native"],
+    },
+    PDF: {
+      ctor: PDF,
+      staticMethods: [],
+      methods: ["save"],
+      accessors: ["native"],
+    },
+    SmartviewRPC: {
+      ctor: SmartviewRPC,
+      staticMethods: ["isSchemeRegistered", "registerScheme"],
+      methods: ["define", "generateTypes", "getDefinedFunctions", "undefine"],
+      accessors: ["webview"],
+    },
+    Notification: {
+      ctor: Notification,
+      staticMethods: ["isSupported", "requestPermission"],
+      methods: ["show"],
+      accessors: [],
+    },
+    SystemTray: {
+      ctor: SystemTray,
+      staticMethods: [],
+      methods: ["destroy", "hide", "onClick", "setIcon", "setMenu", "setTooltip", "show"],
+      accessors: [],
+    },
+  },
+  objects: {
+    Types: [
+      "any",
+      "array",
+      "boolean",
+      "buffer",
+      "number",
+      "object",
+      "optional",
+      "param",
+      "string",
+      "uint8",
+      "void",
+    ],
+    clipboard: ["clear", "hasImage", "hasText", "readText", "writeText"],
+  },
+};
+
+function normalizeMode(input) {
+  if (input === null || input === undefined) return null;
+
+  const normalized = String(input).trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (["1", "automated", "auto", "ci"].includes(normalized)) {
+    return "automated";
+  }
+
+  if (["2", "manual", "interactive"].includes(normalized)) {
+    return "manual";
+  }
+
+  return null;
+}
+
+function resolveModeFromInputs() {
+  const args = process.argv.slice(2);
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+
+    if (arg.startsWith("--mode=")) {
+      const mode = normalizeMode(arg.slice("--mode=".length));
+      if (mode) return { mode, source: "CLI flag --mode" };
+    } else if (arg === "--mode" && i + 1 < args.length) {
+      const mode = normalizeMode(args[i + 1]);
+      if (mode) return { mode, source: "CLI flag --mode" };
+      i += 1;
+    } else if (arg === "--manual" || arg === "--interactive") {
+      return { mode: "manual", source: `CLI flag ${arg}` };
+    } else if (arg === "--automated" || arg === "--auto") {
+      return { mode: "automated", source: `CLI flag ${arg}` };
+    }
+  }
+
+  const envMode = normalizeMode(process.env.SAUCER_TEST_MODE || process.env.TEST_MODE);
+  if (envMode) {
+    return { mode: envMode, source: "environment variable" };
+  }
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY || process.env.CI) {
+    return { mode: "automated", source: "non-interactive session" };
+  }
+
+  return null;
+}
+
+function collectPrototypeMembers(ctor) {
+  const methods = [];
+  const accessors = [];
+
+  for (const name of Object.getOwnPropertyNames(ctor.prototype)) {
+    if (name === "constructor" || name.startsWith("_")) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(ctor.prototype, name);
+    if (!descriptor) continue;
+
+    if (typeof descriptor.value === "function") methods.push(name);
+    if (typeof descriptor.get === "function" || typeof descriptor.set === "function") {
+      accessors.push(name);
+    }
+  }
+
+  return {
+    methods: [...new Set(methods)].sort(),
+    accessors: [...new Set(accessors)].sort(),
+  };
+}
+
+function collectStaticMethods(ctor) {
+  return Object.getOwnPropertyNames(ctor)
+    .filter((name) => !["length", "name", "prototype"].includes(name))
+    .filter((name) => !name.startsWith("_"))
+    .filter((name) => typeof ctor[name] === "function")
+    .sort();
+}
+
+function diffSets(actual, expected) {
+  return {
+    missing: expected.filter((name) => !actual.includes(name)),
+    unexpected: actual.filter((name) => !expected.includes(name)),
+  };
+}
+
+function auditApiParity() {
+  console.log("\n--- API PARITY AUDIT (v8.0.0) ---");
+  let issueCount = 0;
+
+  for (const [className, manifest] of Object.entries(API_PARITY_MANIFEST.classes)) {
+    const { ctor, staticMethods, methods, accessors } = manifest;
+    const actualStatic = collectStaticMethods(ctor);
+    const actualMembers = collectPrototypeMembers(ctor);
+
+    const staticDiff = diffSets(actualStatic, [...staticMethods].sort());
+    const methodDiff = diffSets(actualMembers.methods, [...methods].sort());
+    const accessorDiff = diffSets(actualMembers.accessors, [...accessors].sort());
+
+    if (
+      staticDiff.missing.length === 0 &&
+      staticDiff.unexpected.length === 0 &&
+      methodDiff.missing.length === 0 &&
+      methodDiff.unexpected.length === 0 &&
+      accessorDiff.missing.length === 0 &&
+      accessorDiff.unexpected.length === 0
+    ) {
+      testPass(`API parity ${className}`, "Public surface matches v8 manifest");
+      continue;
+    }
+
+    if (staticDiff.missing.length > 0) {
+      issueCount += staticDiff.missing.length;
+      testFail(
+        `API parity ${className}.static`,
+        `Missing static methods: ${staticDiff.missing.join(", ")}`,
+      );
+    }
+    if (staticDiff.unexpected.length > 0) {
+      issueCount += staticDiff.unexpected.length;
+      testFail(
+        `API parity ${className}.static`,
+        `Unexpected static methods (update manifest/tests): ${staticDiff.unexpected.join(", ")}`,
+      );
+    }
+
+    if (methodDiff.missing.length > 0) {
+      issueCount += methodDiff.missing.length;
+      testFail(
+        `API parity ${className}.methods`,
+        `Missing methods: ${methodDiff.missing.join(", ")}`,
+      );
+    }
+    if (methodDiff.unexpected.length > 0) {
+      issueCount += methodDiff.unexpected.length;
+      testFail(
+        `API parity ${className}.methods`,
+        `Unexpected methods (update manifest/tests): ${methodDiff.unexpected.join(", ")}`,
+      );
+    }
+
+    if (accessorDiff.missing.length > 0) {
+      issueCount += accessorDiff.missing.length;
+      testFail(
+        `API parity ${className}.accessors`,
+        `Missing accessors: ${accessorDiff.missing.join(", ")}`,
+      );
+    }
+    if (accessorDiff.unexpected.length > 0) {
+      issueCount += accessorDiff.unexpected.length;
+      testFail(
+        `API parity ${className}.accessors`,
+        `Unexpected accessors (update manifest/tests): ${accessorDiff.unexpected.join(", ")}`,
+      );
+    }
+  }
+
+  for (const [objectName, expectedKeys] of Object.entries(API_PARITY_MANIFEST.objects)) {
+    const target = objectName === "Types" ? Types : clipboard;
+    const actualKeys = Object.keys(target).sort();
+    const keyDiff = diffSets(actualKeys, [...expectedKeys].sort());
+
+    if (keyDiff.missing.length === 0 && keyDiff.unexpected.length === 0) {
+      testPass(`API parity ${objectName}`, "Object keys match v8 manifest");
+      continue;
+    }
+
+    if (keyDiff.missing.length > 0) {
+      issueCount += keyDiff.missing.length;
+      testFail(
+        `API parity ${objectName}`,
+        `Missing keys: ${keyDiff.missing.join(", ")}`,
+      );
+    }
+    if (keyDiff.unexpected.length > 0) {
+      issueCount += keyDiff.unexpected.length;
+      testFail(
+        `API parity ${objectName}`,
+        `Unexpected keys (update manifest/tests): ${keyDiff.unexpected.join(", ")}`,
+      );
+    }
+  }
+
+  if (issueCount === 0) {
+    testPass("API parity manifest", "No API drift detected");
+  } else {
+    testFail("API parity manifest", `${issueCount} API parity issue(s) detected`);
+  }
+}
 
 // Helper functions for test reporting
 function testPass(name, message) {
@@ -264,6 +592,7 @@ async function promptTestMode() {
     console.log("      - PLUS manual event testing (maximize, minimize, etc.)");
     console.log("      - Requires user interaction");
     console.log("      - Window stays open until you close it\n");
+    console.log("Tip: --mode=automated|manual or SAUCER_TEST_MODE=automated|manual\n");
 
     rl.question("Select mode (1 or 2): ", (answer) => {
       rl.close();
@@ -275,8 +604,15 @@ async function promptTestMode() {
 }
 
 async function main() {
-  // Prompt for test mode
-  testMode = await promptTestMode();
+  const resolvedMode = resolveModeFromInputs();
+  if (resolvedMode) {
+    testMode = resolvedMode.mode;
+    console.log(
+      `\nℹ️  Selected ${testMode.toUpperCase()} mode from ${resolvedMode.source}\n`,
+    );
+  } else {
+    testMode = await promptTestMode();
+  }
 
   // Set expected events based on mode
   const eventsToExpect = testMode === "manual" ? manualEvents : automatedEvents;
@@ -287,6 +623,8 @@ async function main() {
   console.log(`  Mode: ${testMode.toUpperCase()}`);
   console.log("  Comprehensive Error Detection");
   console.log("========================================\n");
+
+  auditApiParity();
 
   // Initialize or reuse the shared application
   console.log("--- APPLICATION CLASS ---");
@@ -330,9 +668,34 @@ async function main() {
   // Test nativeHandle
   try {
     const nativeHandle = app.nativeHandle();
-    testPass("app.nativeHandle", `Retrieved native handle: ${nativeHandle}`);
+    const handleType = typeof nativeHandle;
+    if (nativeHandle === null || nativeHandle === undefined) {
+      testFail("app.nativeHandle", "nativeHandle() returned null/undefined");
+    } else if (["number", "bigint", "string"].includes(handleType)) {
+      testPass(
+        "app.nativeHandle",
+        `Retrieved native handle (${handleType}): ${String(nativeHandle)}`,
+      );
+    } else {
+      testWarn(
+        "app.nativeHandle",
+        `Unexpected native handle type '${handleType}' with value ${String(nativeHandle)}`,
+      );
+    }
   } catch (error) {
     testFail("app.nativeHandle", "Failed to get native handle", error);
+  }
+
+  // Test native accessor
+  try {
+    const nativeApp = app.native;
+    if (nativeApp && (typeof nativeApp === "object" || typeof nativeApp === "function")) {
+      testPass("app.native", "Native application handle is available");
+    } else {
+      testFail("app.native", `Unexpected native accessor type: ${typeof nativeApp}`);
+    }
+  } catch (error) {
+    testFail("app.native", "Failed to read native accessor", error);
   }
 
   // Create a webview to visualize results
@@ -349,6 +712,17 @@ async function main() {
   } catch (error) {
     testFail("new Webview", "Failed to create webview", error);
     process.exit(1);
+  }
+
+  try {
+    const nativeWebview = webview.native;
+    if (nativeWebview && (typeof nativeWebview === "object" || typeof nativeWebview === "function")) {
+      testPass("webview.native", "Native webview handle is available");
+    } else {
+      testFail("webview.native", `Unexpected native accessor type: ${typeof nativeWebview}`);
+    }
+  } catch (error) {
+    testFail("webview.native", "Failed to read native accessor", error);
   }
 
   // Test Phase 1: Preload script support in WebviewOptions
@@ -1323,6 +1697,12 @@ async function main() {
       } else {
         testFail("Stash.getData", "Data mismatch");
       }
+
+      if (stash.native && (typeof stash.native === "object" || typeof stash.native === "function")) {
+        testPass("Stash.native", "Native stash handle is available");
+      } else {
+        testFail("Stash.native", `Unexpected native accessor type: ${typeof stash.native}`);
+      }
     } else {
       testFail("Stash.from", "Failed to create stash");
     }
@@ -1370,6 +1750,12 @@ async function main() {
     const icon = Icon.fromData(minimalPng);
     if (icon) {
       testPass("Icon.fromData (create)", "Created icon from PNG data");
+
+      if (icon.native && (typeof icon.native === "object" || typeof icon.native === "function")) {
+        testPass("Icon.native", "Native icon handle is available");
+      } else {
+        testFail("Icon.native", `Unexpected native accessor type: ${typeof icon.native}`);
+      }
 
       if (typeof icon.isEmpty === "function") {
         const empty = icon.isEmpty();
@@ -1443,6 +1829,12 @@ async function main() {
     const desktop = new Desktop(app);
     testPass("new Desktop", "Created Desktop instance successfully");
 
+    if (desktop.native && (typeof desktop.native === "object" || typeof desktop.native === "function")) {
+      testPass("Desktop.native", "Native desktop handle is available");
+    } else {
+      testFail("Desktop.native", `Unexpected native accessor type: ${typeof desktop.native}`);
+    }
+
     if (typeof desktop.open === "function") {
       testPass("Desktop.open", "open method is available");
     } else {
@@ -1482,6 +1874,12 @@ async function main() {
     const pdf = new PDF(webview);
     testPass("new PDF", "Created PDF instance successfully");
 
+    if (pdf.native && (typeof pdf.native === "object" || typeof pdf.native === "function")) {
+      testPass("PDF.native", "Native PDF handle is available");
+    } else {
+      testFail("PDF.native", `Unexpected native accessor type: ${typeof pdf.native}`);
+    }
+
     if (typeof pdf.save === "function") {
       testPass("PDF.save", "save method is available");
       // Note: We don't actually call save() as it would open a dialog or write a file
@@ -1494,6 +1892,8 @@ async function main() {
 
   // Window events
   console.log("\n--- WINDOW EVENTS ---");
+  let onceLoadCount = 0;
+  let offNavigateCount = 0;
   try {
     webview.on("resize", (w, h) => {
       try {
@@ -1609,6 +2009,19 @@ async function main() {
       }
     });
 
+    webview.once("load", () => {
+      onceLoadCount += 1;
+      if (onceLoadCount === 1) {
+        testPass("webview.once callback", "One-time load listener fired once");
+      } else {
+        testFail(
+          "webview.once callback",
+          `One-time load listener fired ${onceLoadCount} times`,
+        );
+      }
+    });
+    testPass("webview.once registration", "Registered one-time load listener");
+
     webview.on("title", (title) => {
       try {
         recordEvent("title");
@@ -1637,6 +2050,14 @@ async function main() {
         return false;
       }
     });
+
+    const removedNavigateHandler = () => {
+      offNavigateCount += 1;
+      return true;
+    };
+    webview.on("navigate", removedNavigateHandler);
+    webview.off("navigate", removedNavigateHandler);
+    testPass("webview.off registration", "Listener removed successfully");
 
     webview.on("favicon", (buf) => {
       try {
@@ -2214,7 +2635,27 @@ async function main() {
         testFail("webview.execute", "Failed to execute JavaScript", error);
       }
       // Resolve after a short delay to let any triggered events settle
-      setTimeout(resolve, 1000);
+      setTimeout(() => {
+        if (onceLoadCount === 1) {
+          testPass("webview.once behavior", "One-time listener fired exactly once");
+        } else {
+          testFail(
+            "webview.once behavior",
+            `Expected one-time listener to fire once, got ${onceLoadCount}`,
+          );
+        }
+
+        if (offNavigateCount === 0) {
+          testPass("webview.off behavior", "Removed navigate listener was not invoked");
+        } else {
+          testFail(
+            "webview.off behavior",
+            `Removed navigate listener was invoked ${offNavigateCount} times`,
+          );
+        }
+
+        resolve();
+      }, 1000);
     }, 11000);
   });
 
@@ -2596,6 +3037,10 @@ async function main() {
         // Test hide
         tray.hide();
         testPass("SystemTray.hide", "Hide called successfully");
+
+        // Test onClick registration (cannot be deterministically triggered here)
+        tray.onClick(() => {});
+        testPass("SystemTray.onClick", "Registered click callback successfully");
 
         // Test setMenu (basic)
         tray.setMenu([
