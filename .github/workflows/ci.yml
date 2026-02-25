@@ -160,7 +160,7 @@ jobs:
 
       - name: Build (native - non-Windows)
         if: matrix.docker != true && matrix.platform != 'win32'
-        run: npx cmake-js rebuild --CDsaucer_no_version_check=ON
+        run: npx cmake-js rebuild --CDsaucer_no_compiler_version_check=ON
         env:
           npm_config_build_from_source: true
 
@@ -168,8 +168,8 @@ jobs:
         if: matrix.platform == 'win32'
         shell: pwsh
         run: |
-          # Build with saucer_no_version_check to allow current MSVC
-          npx cmake-js rebuild --CDsaucer_no_version_check=ON
+          # Build with saucer_no_compiler_version_check to allow current MSVC
+          npx cmake-js rebuild --CDsaucer_no_compiler_version_check=ON
         env:
           npm_config_build_from_source: true
 

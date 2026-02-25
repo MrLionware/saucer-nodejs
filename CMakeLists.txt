@@ -126,6 +126,13 @@ endif()
 set(saucer_desktop ON CACHE BOOL "Enable desktop module" FORCE)
 set(saucer_pdf ON CACHE BOOL "Enable PDF module" FORCE)
 set(saucer_loop ON CACHE BOOL "Enable loop module" FORCE)
+
+# Compatibility shim: saucer v8 uses saucer_no_compiler_version_check.
+# Keep accepting the older saucer_no_version_check switch used by older scripts.
+if(saucer_no_version_check)
+  set(saucer_no_compiler_version_check ON CACHE BOOL "Disable saucer compiler version check" FORCE)
+endif()
+
 set(saucer_prefer_remote OFF CACHE BOOL "Prefer remote saucer packages" FORCE)
 set(saucer_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../saucer" CACHE STRING "Use local saucer sources" FORCE)
 set(CPM_USE_LOCAL_PACKAGES ON CACHE BOOL "Use local CPM packages when available" FORCE)
