@@ -7,6 +7,12 @@ project(saucer-nodejs LANGUAGES CXX)
 # Enable Objective-C++ for macOS
 if(APPLE)
   enable_language(OBJCXX)
+  # Ensure packaged .node/.dylib artifacts can resolve sibling dylibs after
+  # being copied out of the build tree (e.g. npm/<target>/ in CI artifacts).
+  set(CMAKE_MACOSX_RPATH ON)
+  set(CMAKE_BUILD_RPATH "@loader_path")
+  set(CMAKE_INSTALL_RPATH "@loader_path")
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
 endif()
 
 # Force C++23 for all targets (required by saucer bindings)

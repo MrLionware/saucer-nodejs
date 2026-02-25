@@ -184,6 +184,12 @@ jobs:
           mkdir -p npm/${{ matrix.target }}
           cp build/Release/saucer-nodejs.node npm/${{ matrix.target }}/
           cp build/Release/*.dylib npm/${{ matrix.target }}/ 2>/dev/null || true
+          # Ensure runtime lookup includes artifact-local directory.
+          for bin in npm/${{ matrix.target }}/saucer-nodejs.node npm/${{ matrix.target }}/*.dylib; do
+            [ -e "$bin" ] || continue
+            install_name_tool -add_rpath "@loader_path" "$bin" 2>/dev/null || true
+          done
+          otool -l npm/${{ matrix.target }}/saucer-nodejs.node | grep -A2 LC_RPATH || true
           ls -la npm/${{ matrix.target }}/
 
       - name: Copy artifacts (Windows)
@@ -285,6 +291,8 @@ jobs:
 
       - name: Run test
         run: node test-prebuilt.js
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/npm/${{ matrix.target }}
         timeout-minutes: 2
 
   # ===========================================================================
