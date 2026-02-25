@@ -53,6 +53,7 @@ function info(message) {
 }
 
 function banner() {
+    const packageJson = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
     console.log(`
 ${colors.cyan}${colors.bold}
    _____ ____  __  __________________
@@ -61,7 +62,7 @@ ${colors.cyan}${colors.bold}
  ___/ / ___ / /_/ / /___/ /___/ _, _/
 /____/_/  |_\\____/\\____/_____/_/ |_|
 ${colors.reset}
-${colors.dim}saucer-nodejs CLI v1.0.0${colors.reset}
+${colors.dim}saucer-nodejs CLI v${packageJson.version}${colors.reset}
 `);
 }
 
@@ -79,10 +80,10 @@ async function doctorCommand() {
     // Check Node.js version
     const nodeVersion = process.version;
     const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
-    if (majorVersion >= 18) {
-        success(`Node.js ${nodeVersion} (minimum: v18.0.0)`);
+    if (majorVersion >= 20) {
+        success(`Node.js ${nodeVersion} (minimum: v20.0.0)`);
     } else {
-        error(`Node.js ${nodeVersion} - requires v18.0.0 or higher`);
+        error(`Node.js ${nodeVersion} - requires v20.0.0 or higher`);
         allPassed = false;
     }
 
@@ -343,6 +344,7 @@ async function initCommand(args) {
 
     // Create package.json
     info('Generating package.json...');
+    const packageMeta = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
     const packageJson = {
         name: projectName,
         version: '1.0.0',
@@ -353,7 +355,7 @@ async function initCommand(args) {
             dev: 'node --watch index.js',
         },
         dependencies: {
-            'saucer-nodejs': '^1.0.0',
+            'saucer-nodejs': `^${packageMeta.version}`,
         },
     };
     writeFileSync(join(projectDir, 'package.json'), JSON.stringify(packageJson, null, 2));
@@ -368,7 +370,7 @@ async function initCommand(args) {
 import { Application, Webview } from 'saucer-nodejs';
 
 // Create application
-const app = new Application({ id: 'com.example.${projectName.replace(/-/g, '')}' });
+const app = Application.init({ id: 'com.example.${projectName.replace(/-/g, '')}' });
 
 // Create webview window
 const webview = new Webview(app);
