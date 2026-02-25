@@ -334,6 +334,20 @@ jobs:
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
+          always-auth: true
+
+      - name: Resolve npm auth token
+        run: |
+          token="${NPM_TOKEN:-${NODE_AUTH_TOKEN_SECRET:-}}"
+          if [ -z "$token" ]; then
+            echo "::error::Missing npm auth token. Set repository secret NPM_TOKEN or NODE_AUTH_TOKEN."
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "NODE_AUTH_TOKEN=$token" >> "$GITHUB_ENV"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN_SECRET: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - name: Download all platform packages
         uses: actions/download-artifact@v4
@@ -379,16 +393,12 @@ jobs:
             npm publish --access public --provenance || echo "Failed to publish $(basename $dir)"
             cd ../..
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Install dependencies for main package
         run: npm install --ignore-scripts
 
       - name: Publish main package
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
