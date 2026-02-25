@@ -333,7 +333,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: 'https://registry.npmjs.org'
+
+      - name: Clear token auth path
+        run: |
+          # Trusted publishing must not use a static NODE_AUTH_TOKEN.
+          echo "NODE_AUTH_TOKEN=" >> "$GITHUB_ENV"
+          npm config delete //registry.npmjs.org/:_authToken || true
 
       - name: Verify OIDC for trusted publishing
         run: |
