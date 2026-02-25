@@ -196,5 +196,7 @@ elseif(UNIX)
   target_include_directories(${PROJECT_NAME} PRIVATE ${WEBKIT2_INCLUDE_DIRS})
   target_link_libraries(${PROJECT_NAME} ${WEBKIT2_LIBRARIES})
 elseif(WIN32)
-  target_link_libraries(${PROJECT_NAME} "WebView2LoaderStatic.lib")
+  # WebView2 linkage is provided through saucer's own Windows configuration.
+  # Avoid hard-coding a raw library filename here, which breaks CI/workflows
+  # where the loader lib is not on the default linker path.
 endif()
