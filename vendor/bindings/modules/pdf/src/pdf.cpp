@@ -1,62 +1,53 @@
 #include "pdf.h"
+#include "webview.impl.hpp"
 
-#include "webview.hpp"
-#include "utils/handle.hpp"
+#include "utils/wide.hpp"
+#include "utils/opaque.hpp"
 
 #include <saucer/modules/pdf.hpp>
 
-struct saucer_print_settings : bindings::handle<saucer_print_settings, saucer::modules::print_settings>
+struct saucer_pdf : saucer::bindings::opaque<saucer_pdf, saucer::modules::pdf>
 {
 };
 
-struct saucer_pdf : bindings::handle<saucer_pdf, saucer::modules::pdf>
+struct saucer_pdf_settings : saucer::bindings::opaque<saucer_pdf_settings, saucer::modules::pdf::settings>
 {
 };
 
 extern "C"
 {
-    saucer_print_settings *saucer_print_settings_new()
+    void saucer_pdf_settings_free(saucer_pdf_settings *settings)
     {
-        return saucer_print_settings::make();
+        delete settings;
     }
 
-    void saucer_print_settings_free(saucer_print_settings *handle)
+    saucer_pdf_settings *saucer_pdf_settings_new(const char *path)
     {
-        delete handle;
+        return saucer_pdf_settings::from({.file = saucer::bindings::u8path(path)});
     }
 
-    void saucer_print_settings_set_file(saucer_print_settings *handle, const char *file)
+    void saucer_pdf_settings_set_size(saucer_pdf_settings *settings, double w, double h)
     {
-        handle->value().file = file;
+        (*settings)->size = {.w = w, .h = h};
     }
 
-    void saucer_print_settings_set_orientation(saucer_print_settings *handle, SAUCER_LAYOUT orientation)
+    void saucer_pdf_settings_set_orientation(saucer_pdf_settings *settings, saucer_pdf_layout layout)
     {
-        handle->value().orientation = static_cast<saucer::modules::layout>(orientation);
+        (*settings)->orientation = static_cast<saucer::modules::pdf::layout>(layout);
     }
 
-    void saucer_print_settings_set_width(saucer_print_settings *handle, double width)
+    void saucer_pdf_free(saucer_pdf *pdf)
     {
-        handle->value().size.first = width;
+        delete pdf;
     }
 
-    void saucer_print_settings_set_height(saucer_print_settings *handle, double height)
+    saucer_pdf *saucer_pdf_new(saucer_webview *webview)
     {
-        handle->value().size.second = height;
+        return saucer_pdf::make(**webview);
     }
 
-    saucer_pdf *saucer_pdf_new(saucer_handle *webview)
+    void saucer_pdf_save(saucer_pdf *pdf, saucer_pdf_settings *settings)
     {
-        return saucer_pdf::make(webview);
-    }
-
-    void saucer_pdf_free(saucer_pdf *handle)
-    {
-        delete handle;
-    }
-
-    void saucer_pdf_save(saucer_pdf *handle, saucer_print_settings *settings)
-    {
-        handle->value().save(settings->value());
+        (*pdf)->save(**settings);
     }
 }

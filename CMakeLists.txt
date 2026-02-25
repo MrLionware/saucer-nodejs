@@ -95,6 +95,8 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/vendor/bindings/modules/pdf/inc
 
 # Source files
 file(GLOB SOURCE_FILES "src/*.cpp")
+file(GLOB COMPAT_SOURCE_FILES "src/compat/*.cpp")
+list(APPEND SOURCE_FILES ${COMPAT_SOURCE_FILES})
 
 # Add platform-specific files
 if(APPLE)
@@ -123,9 +125,13 @@ endif()
 # Enable saucer modules (pdf, desktop)
 set(saucer_desktop ON CACHE BOOL "Enable desktop module" FORCE)
 set(saucer_pdf ON CACHE BOOL "Enable PDF module" FORCE)
+set(saucer_loop ON CACHE BOOL "Enable loop module" FORCE)
 set(saucer_prefer_remote OFF CACHE BOOL "Prefer remote saucer packages" FORCE)
 set(saucer_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../saucer" CACHE STRING "Use local saucer sources" FORCE)
 set(CPM_USE_LOCAL_PACKAGES ON CACHE BOOL "Use local CPM packages when available" FORCE)
+if(APPLE)
+  set(saucer_backend WebKit CACHE STRING "Use WebKit backend on macOS" FORCE)
+endif()
 
 # Add vendored saucer bindings as a subdirectory
 # The bindings will automatically fetch the saucer library from GitHub via CPM
@@ -136,7 +142,13 @@ add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES} ${CMAKE_JS_SRC})
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "" SUFFIX ".node")
 
 # Add node-addon-api and node includes to target
-target_include_directories(${PROJECT_NAME} PRIVATE 
+target_include_directories(${PROJECT_NAME} BEFORE PRIVATE 
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/compat"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/compat/private"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/compat/saucer"
+  "${CMAKE_CURRENT_BINARY_DIR}/_deps/saucer-desktop-src/include"
+  "${CMAKE_CURRENT_BINARY_DIR}/_deps/saucer-pdf-src/include"
+  "${CMAKE_CURRENT_BINARY_DIR}/_deps/saucer-loop-src/include"
   ${CMAKE_JS_INC}
   ${NODE_INCLUDE_DIR}
   ${UV_INCLUDE_DIR}
@@ -156,6 +168,10 @@ target_link_libraries(${PROJECT_NAME}
   saucer-bindings
   saucer-bindings-desktop
   saucer-bindings-pdf
+  saucer-bindings-loop
+  saucer-desktop
+  saucer-pdf
+  saucer-loop
 )
 
 # Platform-specific settings

@@ -5,7 +5,7 @@ extern "C"
 {
     saucer_options *saucer_options_new(const char *id)
     {
-        return saucer_options::make(id);
+        return saucer_options::make(saucer_options_data{.id = id ? id : ""});
     }
 
     void saucer_options_free(saucer_options *handle)

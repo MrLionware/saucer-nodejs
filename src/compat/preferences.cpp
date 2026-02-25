@@ -7,8 +7,13 @@ extern "C"
 {
     saucer_preferences *saucer_preferences_new(saucer_application *app)
     {
+        if (!app || !app->value() || !app->value()->app)
+        {
+            return nullptr;
+        }
+
         return saucer_preferences::from({
-            .application = app->value(),
+            .application = app->value()->app,
         });
     }
 

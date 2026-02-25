@@ -1,86 +1,94 @@
-#include "scheme.h"
-#include "scheme.hpp"
+#include "scheme.impl.hpp"
 
-#include "stash.hpp"
+#include "stash.impl.hpp"
+#include "url.impl.hpp"
 
-#include "memory.h"
-#include "utils/string.hpp"
+#include "utils/range.hpp"
+
+#include <format>
 
 extern "C"
 {
+    void saucer_scheme_response_free(saucer_scheme_response *response)
+    {
+        delete response;
+    }
+
     saucer_scheme_response *saucer_scheme_response_new(saucer_stash *data, const char *mime)
     {
-        return saucer_scheme_response::from(saucer::scheme::response{
-            .data = data->value(),
-            .mime = mime,
-        });
+        return saucer_scheme_response::from(saucer::scheme::response{.data = **data, .mime = mime});
     }
 
-    void saucer_scheme_response_free(saucer_scheme_response *handle)
+    void saucer_scheme_response_append_header(saucer_scheme_response *response, const char *header, const char *value)
     {
-        delete handle;
+        (*response)->headers.emplace(header, value);
     }
 
-    void saucer_scheme_response_set_status(saucer_scheme_response *handle, int status)
+    void saucer_scheme_response_set_status(saucer_scheme_response *response, int status)
     {
-        handle->value().status = status;
+        (*response)->status = status;
     }
 
-    void saucer_scheme_response_add_header(saucer_scheme_response *handle, const char *header, const char *value)
+    void saucer_scheme_request_free(saucer_scheme_request *request)
     {
-        handle->value().headers.emplace(header, value);
+        delete request;
     }
 
-    void saucer_scheme_request_free(saucer_scheme_request *handle)
+    saucer_scheme_request *saucer_scheme_request_copy(saucer_scheme_request *request)
     {
-        delete handle;
+        return saucer_scheme_request::make(**request);
     }
 
-    char *saucer_scheme_request_url(saucer_scheme_request *handle)
+    saucer_url *saucer_scheme_request_url(saucer_scheme_request *request)
     {
-        return bindings::alloc(handle->value().url());
+        return saucer_url::from((*request)->url());
     }
 
-    char *saucer_scheme_request_method(saucer_scheme_request *handle)
+    void saucer_scheme_request_method(saucer_scheme_request *request, char *method, size_t *size)
     {
-        return bindings::alloc(handle->value().method());
+        saucer::bindings::return_range((*request)->method(), method, size);
     }
 
-    saucer_stash *saucer_scheme_request_content(saucer_scheme_request *handle)
+    saucer_stash *saucer_scheme_request_content(saucer_scheme_request *request)
     {
-        return saucer_stash::from(handle->value().content());
+        return saucer_stash::from((*request)->content());
     }
 
-    void saucer_scheme_request_headers(saucer_scheme_request *handle, char ***headers, char ***values, size_t *count)
+    void saucer_scheme_request_headers(saucer_scheme_request *request, char *result, size_t *size)
     {
-        auto data = handle->value().headers();
-        *count    = data.size();
+        auto rtn = std::vector<char>{};
 
-        *headers = static_cast<char **>(saucer_memory_alloc(*count * sizeof(char *)));
-        *values  = static_cast<char **>(saucer_memory_alloc(*count * sizeof(char *)));
-
-        for (auto it = data.begin(); it != data.end(); it++)
+        for (const auto &[header, value] : (*request)->headers())
         {
-            const auto &[header, value] = *it;
-            const auto index            = std::distance(data.begin(), it);
-
-            (*headers)[index] = bindings::alloc(header);
-            (*values)[index]  = bindings::alloc(value);
+            rtn.insert_range(rtn.end(), saucer::bindings::vectorize(std::format("{}: {}", header, value)));
+            rtn.emplace_back('\0');
         }
+
+        if (!rtn.empty())
+        {
+            rtn.pop_back();
+        }
+
+        saucer::bindings::return_range(rtn, result, size);
     }
 
-    void saucer_scheme_executor_free(saucer_scheme_executor *handle)
+    void saucer_scheme_executor_free(saucer_scheme_executor *executor)
     {
-        delete handle;
+        delete executor;
     }
 
-    void saucer_scheme_executor_resolve(saucer_scheme_executor *handle, saucer_scheme_response *response)
+    saucer_scheme_executor *saucer_scheme_executor_copy(saucer_scheme_executor *executor)
     {
-        handle->value().resolve(response->value());
+        return saucer_scheme_executor::make(**executor);
     }
 
-    void saucer_scheme_executor_reject(saucer_scheme_executor *handle, SAUCER_SCHEME_ERROR error)
+    void saucer_scheme_executor_reject(saucer_scheme_executor *executor, saucer_scheme_error error)
     {
-        handle->value().reject(static_cast<saucer::scheme::error>(error));
+        (*executor)->reject(static_cast<saucer::scheme::error>(error));
+    }
+
+    void saucer_scheme_executor_accept(saucer_scheme_executor *executor, saucer_scheme_response *response)
+    {
+        (*executor)->resolve(**response);
     }
 }

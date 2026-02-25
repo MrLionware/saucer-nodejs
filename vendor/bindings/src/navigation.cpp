@@ -1,32 +1,36 @@
-#include "navigation.h"
-#include "navigation.hpp"
+#include "navigation.impl.hpp"
 
-#include "utils/string.hpp"
+#include "url.impl.hpp"
 
 extern "C"
 {
-    void saucer_navigation_free(saucer_navigation *handle)
+    void saucer_navigation_free(saucer_navigation *navigation)
     {
-        delete handle;
+        delete navigation;
     }
 
-    char *saucer_navigation_url(saucer_navigation *handle)
+    saucer_navigation *saucer_navigation_move(saucer_navigation *navigation)
     {
-        return bindings::alloc(handle->value().url());
+        return saucer_navigation::from(std::move(**navigation));
     }
 
-    bool saucer_navigation_new_window(saucer_navigation *handle)
+    saucer_url *saucer_navigation_url(saucer_navigation *navigation)
     {
-        return handle->value().new_window();
+        return saucer_url::from((**navigation)->url());
     }
 
-    bool saucer_navigation_redirection(saucer_navigation *handle)
+    bool saucer_navigation_new_window(saucer_navigation *navigation)
     {
-        return handle->value().redirection();
+        return (**navigation)->new_window();
     }
 
-    bool saucer_navigation_user_initiated(saucer_navigation *handle)
+    bool saucer_navigation_redirection(saucer_navigation *navigation)
     {
-        return handle->value().user_initiated();
+        return (**navigation)->redirection();
+    }
+
+    bool saucer_navigation_user_initiated(saucer_navigation *navigation)
+    {
+        return (**navigation)->user_initiated();
     }
 }

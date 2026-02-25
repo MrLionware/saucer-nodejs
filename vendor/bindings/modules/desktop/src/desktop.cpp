@@ -1,121 +1,138 @@
 #include "desktop.h"
+#include "app.impl.hpp"
 
-#include "app.hpp"
+#include "utils/wide.hpp"
+#include "utils/range.hpp"
+#include "utils/opaque.hpp"
 
-#include "utils/string.hpp"
-#include "utils/handle.hpp"
-
-#include <saucer/memory.h>
 #include <saucer/modules/desktop.hpp>
 
-struct saucer_desktop : bindings::handle<saucer_desktop, saucer::modules::desktop>
+struct saucer_desktop : saucer::bindings::opaque<saucer_desktop, saucer::modules::desktop>
 {
 };
 
-struct saucer_picker_options : bindings::handle<saucer_picker_options, saucer::modules::picker::options>
+struct saucer_picker_options : saucer::bindings::opaque<saucer_picker_options, saucer::modules::picker::options>
 {
 };
 
-using saucer::modules::picker::type;
+template <saucer::modules::picker::type T>
+void pick(saucer_desktop *desktop, saucer_picker_options *opts, char *out, size_t *size, int *error)
+{
+    using result_t                  = saucer::modules::picker::result_t<T>;
+    static thread_local auto result = saucer::result<result_t>{};
+
+    if (!out)
+    {
+        result = (*desktop)->pick<T>(opts ? **opts : saucer::modules::picker::options{});
+    }
+
+    if (!result.has_value() && error)
+    {
+        *error = result.error().code();
+    }
+
+    if (!result.has_value())
+    {
+        return;
+    }
+
+    auto final = std::vector<char>{};
+
+    if constexpr (std::ranges::range<result_t>)
+    {
+        for (const auto &path : *result)
+        {
+            final.insert_range(final.end(), saucer::bindings::vectorize(path.string()));
+            final.emplace_back('\0');
+        }
+
+        if (!final.empty())
+        {
+            final.pop_back();
+        }
+    }
+    else
+    {
+        final = saucer::bindings::vectorize(result.string());
+    }
+
+    saucer::bindings::return_range(final, out, size);
+}
 
 extern "C"
 {
-    saucer_desktop *saucer_desktop_new(saucer_application *app)
-    {
-        return saucer_desktop::make(app->value().get());
-    }
-
-    void saucer_desktop_free(saucer_desktop *handle)
-    {
-        delete handle;
-    }
-
-    void saucer_desktop_open(saucer_desktop *handle, const char *path)
-    {
-        handle->value().open(path);
-    }
-
     saucer_picker_options *saucer_picker_options_new()
     {
-        return saucer_picker_options::make();
+        return saucer_picker_options::from({});
     }
 
-    void saucer_picker_options_free(saucer_picker_options *handle)
+    void saucer_picker_options_free(saucer_picker_options *options)
     {
-        delete handle;
+        delete options;
     }
 
-    void saucer_picker_options_set_initial(saucer_picker_options *handle, const char *path)
+    void saucer_picker_options_set_initial(saucer_picker_options *options, const char *initial)
     {
-        handle->value().initial = path;
+        (*options)->initial = saucer::bindings::u8path(initial);
     }
 
-    void saucer_picker_options_add_filter(saucer_picker_options *handle, const char *filter)
+    void saucer_picker_options_set_filters(saucer_picker_options *opts, const char *filters, size_t size)
     {
-        handle->value().filters.emplace(filter);
-    }
+        auto final = std::set<std::string>{};
 
-    char *saucer_desktop_pick_file(saucer_desktop *handle, saucer_picker_options *options)
-    {
-        auto result = handle->value().pick<type::file>(options->value());
-
-        if (!result)
+        for (const char *str = filters; str - filters < size; str += std::char_traits<char>::length(str) + 1)
         {
-            return nullptr;
+            final.emplace(str);
         }
 
-        return bindings::alloc(result->string());
+        (*opts)->filters = std::move(final);
     }
 
-    char *saucer_desktop_pick_folder(saucer_desktop *handle, saucer_picker_options *options)
+    void saucer_desktop_free(saucer_desktop *desktop)
     {
-        auto result = handle->value().pick<type::folder>(options->value());
-
-        if (!result)
-        {
-            return nullptr;
-        }
-
-        return bindings::alloc(result->string());
+        delete desktop;
     }
 
-    char **saucer_desktop_pick_files(saucer_desktop *handle, saucer_picker_options *options)
+    saucer_desktop *saucer_desktop_new(saucer_application *app)
     {
-        auto result = handle->value().pick<type::files>(options->value());
-
-        if (!result)
-        {
-            return nullptr;
-        }
-
-        const auto count = result->size();
-        auto **rtn       = static_cast<char **>(saucer_memory_alloc(count * sizeof(char *)));
-
-        for (auto i = 0u; result->size() > i; i++)
-        {
-            rtn[i] = bindings::alloc(result->at(i).string());
-        }
-
-        return rtn;
+        return saucer_desktop::make((*app).ptr());
     }
 
-    char **saucer_desktop_pick_folders(saucer_desktop *handle, saucer_picker_options *options)
+    void saucer_desktop_mouse_position(saucer_desktop *desktop, int *x, int *y)
     {
-        auto result = handle->value().pick<type::files>(options->value());
+        auto pos = (*desktop)->mouse_position();
+        *x       = pos.x;
+        *y       = pos.y;
+    }
 
-        if (!result)
-        {
-            return nullptr;
-        }
+    using saucer::modules::picker::type;
 
-        const auto count = result->size();
-        auto **rtn       = static_cast<char **>(saucer_memory_alloc(count * sizeof(char *)));
+    void saucer_picker_pick_file(saucer_desktop *desktop, saucer_picker_options *options, char *file, size_t *size,
+                                 int *error)
+    {
+        pick<type::file>(desktop, options, file, size, error);
+    }
 
-        for (auto i = 0u; result->size() > i; i++)
-        {
-            rtn[i] = bindings::alloc(result->at(i).string());
-        }
+    void saucer_picker_pick_folder(saucer_desktop *desktop, saucer_picker_options *options, char *folder, size_t *size,
+                                   int *error)
+    {
+        pick<type::folder>(desktop, options, folder, size, error);
+    }
 
-        return rtn;
+    void saucer_picker_pick_files(saucer_desktop *desktop, saucer_picker_options *options, char *files, size_t *size,
+                                  int *error)
+    {
+        pick<type::files>(desktop, options, files, size, error);
+    }
+
+    void saucer_desktop_pick_save(saucer_desktop *desktop, saucer_picker_options *options, char *location, size_t *size,
+                                  int *error)
+    {
+        pick<type::save>(desktop, options, location, size, error);
+    }
+
+    void saucer_desktop_open(saucer_desktop *desktop, const char *path)
+    {
+        (*desktop)->open(path);
     }
 }

@@ -418,15 +418,13 @@ void SystemTray::OnClick(const Napi::CallbackInfo& info) {
 #include <saucer/modules/stable/webkit.hpp>
 
 // Import the webview handle definition
-#include "../vendor/bindings/private/webview.hpp"
+#include "private/webview.hpp"
 
 // Extension functions are in global namespace
 
 void saucer_window_position_ext(saucer_handle* handle, int* x, int* y) {
   @autoreleasepool {
-    // Cast to window base class to get window natives
-    auto* window_ptr = static_cast<saucer::window*>(handle);
-    auto natives = window_ptr->native<true>();
+    auto natives = handle->view.parent().native<true>();
     NSWindow* window = natives.window;
     if (window) {
       NSRect frame = [window frame];
@@ -444,8 +442,7 @@ void saucer_window_position_ext(saucer_handle* handle, int* x, int* y) {
 
 void saucer_window_set_position_ext(saucer_handle* handle, int x, int y) {
   @autoreleasepool {
-    auto* window_ptr = static_cast<saucer::window*>(handle);
-    auto natives = window_ptr->native<true>();
+    auto natives = handle->view.parent().native<true>();
     NSWindow* window = natives.window;
     if (window) {
       NSRect frame = [window frame];
@@ -460,8 +457,7 @@ void saucer_window_set_position_ext(saucer_handle* handle, int x, int y) {
 
 bool saucer_window_fullscreen_ext(saucer_handle* handle) {
   @autoreleasepool {
-    auto* window_ptr = static_cast<saucer::window*>(handle);
-    auto natives = window_ptr->native<true>();
+    auto natives = handle->view.parent().native<true>();
     NSWindow* window = natives.window;
     if (window) {
       return ([window styleMask] & NSWindowStyleMaskFullScreen) != 0;
@@ -472,8 +468,7 @@ bool saucer_window_fullscreen_ext(saucer_handle* handle) {
 
 void saucer_window_set_fullscreen_ext(saucer_handle* handle, bool enabled) {
   @autoreleasepool {
-    auto* window_ptr = static_cast<saucer::window*>(handle);
-    auto natives = window_ptr->native<true>();
+    auto natives = handle->view.parent().native<true>();
     NSWindow* window = natives.window;
     if (window) {
       bool isFullscreen = ([window styleMask] & NSWindowStyleMaskFullScreen) != 0;
@@ -486,8 +481,7 @@ void saucer_window_set_fullscreen_ext(saucer_handle* handle, bool enabled) {
 
 double saucer_webview_zoom_ext(saucer_handle* handle) {
   @autoreleasepool {
-    // For webview operations, call native() directly on handle
-    auto natives = handle->native<true>();
+    auto natives = handle->view.native<true>();
     WKWebView* webview = natives.webview;
     if (webview) {
       // WKWebView uses pageZoom for content zoom
@@ -499,7 +493,7 @@ double saucer_webview_zoom_ext(saucer_handle* handle) {
 
 void saucer_webview_set_zoom_ext(saucer_handle* handle, double level) {
   @autoreleasepool {
-    auto natives = handle->native<true>();
+    auto natives = handle->view.native<true>();
     WKWebView* webview = natives.webview;
     if (webview) {
       webview.pageZoom = level;

@@ -28,10 +28,10 @@
 
 #include <saucer/pdf.h>
 
-#include "../vendor/bindings/private/webview.hpp"
+#include "private/webview.hpp"
 
 #include <glaze/glaze.hpp>
-#include <glaze/json/json_t.hpp>
+#include <glaze/json/generic.hpp>
 #include <glaze/json/read.hpp>
 
 #include <saucer/serializers/glaze/glaze.hpp>
@@ -3434,32 +3434,6 @@ void Webview::Expose(const Napi::CallbackInfo& info) {
 
 
 
-  saucer::launch policy = saucer::launch::sync;
-
-  if (info.Length() > 2 && info[2].IsObject()) {
-
-    Napi::Object opts = info[2].As<Napi::Object>();
-
-    if (opts.Has("async") && opts.Get("async").IsBoolean() && opts.Get("async").As<Napi::Boolean>().Value()) {
-
-      policy = saucer::launch::async;
-
-    } else if (opts.Has("launch") && opts.Get("launch").IsString()) {
-
-      std::string launchOpt = opts.Get("launch").As<Napi::String>().Utf8Value();
-
-      if (launchOpt == "async") {
-
-        policy = saucer::launch::async;
-
-      }
-
-    }
-
-  }
-
-
-
   auto exposed_entry = std::make_shared<ExposedCallback>();
 
   exposed_entry->name = name;
@@ -3648,9 +3622,7 @@ void Webview::Expose(const Napi::CallbackInfo& info) {
 
       }
 
-    },
-
-    policy
+    }
 
   );
 

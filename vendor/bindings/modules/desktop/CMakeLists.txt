@@ -1,15 +1,10 @@
-project(saucer-bindings-desktop LANGUAGES CXX VERSION 5.0.0)
+project(saucer-bindings-desktop LANGUAGES CXX VERSION 8.0.0)
 
 # --------------------------------------------------------------------------------------------------------
 # Setup library
 # --------------------------------------------------------------------------------------------------------
 
-if (saucer_bindings_static)
-  add_library(${PROJECT_NAME} STATIC)
-  target_compile_definitions(${PROJECT_NAME} PUBLIC SAUCER_BINDINGS_DESKTOP_STATIC_DEFINE)
-else()
-  add_library(${PROJECT_NAME} SHARED)
-endif()
+add_library(${PROJECT_NAME} SHARED)
 add_library(saucer::bindings::desktop ALIAS ${PROJECT_NAME})
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
@@ -26,7 +21,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE "include/saucer")
 # Add Sources
 # --------------------------------------------------------------------------------------------------------
 
-target_sources(${PROJECT_NAME} PRIVATE 
+target_sources(${PROJECT_NAME} PRIVATE
     "src/desktop.cpp"
 )
 
@@ -36,7 +31,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 
 CPMFindPackage(
     NAME           saucer-desktop
-    VERSION        2.0.0
+    VERSION        4.2.0
     GIT_REPOSITORY "https://github.com/saucer/desktop"
 )
 

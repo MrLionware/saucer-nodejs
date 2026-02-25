@@ -5,16 +5,17 @@ extern "C"
 {
 #endif
 
+#include "url.h"
 #include "export.h"
 
 #include <stdbool.h>
 
+    /**
+     * @remark A navigation cannot be copied.
+     */
     struct saucer_navigation;
 
-    SAUCER_EXPORT void saucer_navigation_free(saucer_navigation *);
-
-    /*[[sc::requires_free]]*/ SAUCER_EXPORT char *saucer_navigation_url(saucer_navigation *);
-
+    SAUCER_EXPORT saucer_url *saucer_navigation_url(saucer_navigation *);
     SAUCER_EXPORT bool saucer_navigation_new_window(saucer_navigation *);
     SAUCER_EXPORT bool saucer_navigation_redirection(saucer_navigation *);
     SAUCER_EXPORT bool saucer_navigation_user_initiated(saucer_navigation *);
